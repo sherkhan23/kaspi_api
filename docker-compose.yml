@@ -1,0 +1,75 @@
+version: "3.1"
+
+services:
+  db:
+    container_name: database
+    image: postgres:14
+    environment:
+      POSTGRES_DB: $DB_NAME
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+    restart: always
+    ports:
+      - 5432:5432
+    networks:
+      - botnet
+    volumes:
+      - ./postgres:/var/lib/postgresql
+
+
+  django:
+    container_name: admin
+    build:
+      context: .
+    command: >
+      sh -c "python django_app.py makemigrations &&
+      python django_app.py migrate &&
+      python django_app.py collectstatic --noinput &&
+      python django_app.py runserver 0.0.0.0:8000"
+    ports:
+      - 8000:8000
+    networks:
+      - botnet
+    restart: always
+    env_file:
+      - ".env"
+    depends_on:
+      - db
+    volumes:
+        - static_data:/api/admin_panel/static
+        - .:/api  # Монтируем текущую директорию в /src контейнера
+        - /api/venv
+
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+      - static_data:/static
+    depends_on:
+      - django
+    networks:
+      - botnet
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    command: certonly --webroot --webroot-path=/var/www/certbot/ --email sashamarx74@gmail.com --agree-tos --no-eff-email -d api.finance-assel.kz
+    depends_on:
+      - nginx
+
+volumes:
+  static_data:
+
+networks:
+  botnet:
+    driver: bridge
