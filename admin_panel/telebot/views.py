@@ -401,7 +401,7 @@ def send_request_kaspi(request):
                 "Amount": amount,
                 "Service": "Investudy",
                 "returnUrl": return_url,
-                "refererHost": "api.finance-assel.kz",
+                "refererHost": "api.infozem.kz",
                 "GenerateQrCode": True
             }
             headers = {
@@ -479,7 +479,7 @@ def send_request_kaspi_tilda(phone, amount, client_id):
             "Amount": amount,
             "Service": "Investudy",
             "returnUrl": return_url,
-            "refererHost": "api.finance-assel.kz",
+            "refererHost": "api.infozem.kz",
             "GenerateQrCode": True
         }
 
