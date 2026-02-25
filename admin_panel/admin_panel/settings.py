@@ -29,7 +29,7 @@ SECRET_KEY = 'django-insecure-rxe5wz_!d+vd+10i&mx90@-wj-=mk7^+(v1%j=5eb_q0306@vo
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['213.171.4.39', 'localhost', '127.0.0.1', 'api.investudy-aligee001.kz', 'admin',
+ALLOWED_HOSTS = ['213.171.4.39', '89.35.125.145', 'localhost', '127.0.0.1', 'api.investudy-aligee001.kz', 'admin',
                  'www.api.investudy-aligee001.kz', '109.68.213.220', '62.84.125.172', 'api.finance-assel.kz',
                  'www.api.finance-assel.kz', '81.17.154.132']
 
@@ -40,6 +40,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://api.finance-assel.kz',
     'https://213.171.4.39',
     'https://81.17.154.132',
+    'http://89.35.125.145'
 ]
 
 # Application definition
