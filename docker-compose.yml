@@ -48,9 +48,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx:/etc/nginx/conf.d
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt:ro   # пробрасываем конфиги certbot
+      - ./certbot/www:/var/www/certbot        # пробрасываем для проверки
       - static_data:/static
     depends_on:
       - django
