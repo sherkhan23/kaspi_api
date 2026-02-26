@@ -190,7 +190,7 @@ def check_account(account, txn_id, sum):
                     client_id = user.sb_id
                     logging.warning(client_id)
                     r = requests.get(
-                        f'https://chatter.salebot.pro/api/d19eb6952c1dbb66da18dcaeb374c46a/callback?client_id={client_id}&message=kaspi_success')
+                        f'https://chatter.salebot.pro/api/cd19ea34c4b202488fbe16721fd51415/callback?client_id={client_id}&message=kaspi_success')
                     logging.warning(f'STATUS ORDER NULL: {r.status_code}')
                     logging.warning(f'RESULT: {r.text}')
                 trans.delete()
@@ -295,7 +295,7 @@ def process_payment(txn_id, account, sum, txn_date):
             logging.warning(client_id)
 
             r = requests.get(
-                f'https://chatter.salebot.pro/api/d19eb6952c1dbb66da18dcaeb374c46a/callback?client_id={client_id}&message=kaspi_success')
+                f'https://chatter.salebot.pro/api/cd19ea34c4b202488fbe16721fd51415/callback?client_id={client_id}&message=kaspi_success')
             logging.warning(f'STATUS ORDER FIRST: {r.status_code}')
             logging.warning(f'RESULT: {r.text}')
 
