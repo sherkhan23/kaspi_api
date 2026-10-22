@@ -63,7 +63,7 @@ services:
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-    command: certonly --webroot --webroot-path=/var/www/certbot/ --email h.sherhann@gmail.com --agree-tos --no-eff-email -d api.infozem.kz
+    command: certonly --webroot --webroot-path=/var/www/certbot/ --email h.sherhann@gmail.com --agree-tos --no-eff-email -d pay.stomatologainur.site
     depends_on:
       - nginx
 
