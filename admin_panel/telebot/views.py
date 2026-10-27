@@ -426,7 +426,7 @@ def send_request_kaspi(request):
             )
 
             # Формируем данные для отправки
-            return_url = f'https://www.aulbekova.kz/passive'
+            return_url = f'https://stomatologainur.site/passive'
             json_data = {
                 "TranId": tran_id,
                 "OrderId": tran_id,
@@ -521,7 +521,7 @@ def send_request_kaspi_tilda(phone, amount, client_id):
         )
 
         # Формируем данные для отправки
-        return_url = 'https://www.aulbekova.kz/passive'
+        return_url = 'https://stomatologainur.site/passive'
         json_data = {
             "TranId": phone,
             "OrderId": phone,
