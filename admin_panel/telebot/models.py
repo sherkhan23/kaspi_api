@@ -1,3 +1,6 @@
+import json
+import logging
+
 from django.contrib.auth import get_user_model
 from django.db import models
 
@@ -107,3 +110,65 @@ class Transaction(models.Model):
     sum = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     result = models.IntegerField(default=0)
     comment = models.TextField(blank=True, null=True)
+
+
+class RequestLog(models.Model):
+    LEVEL_INFO = 'INFO'
+    LEVEL_WARNING = 'WARNING'
+    LEVEL_ERROR = 'ERROR'
+    LEVEL_SUCCESS = 'SUCCESS'
+    LEVEL_CHOICES = [
+        (LEVEL_INFO, 'Info'),
+        (LEVEL_WARNING, 'Warning'),
+        (LEVEL_ERROR, 'Error'),
+        (LEVEL_SUCCESS, 'Success'),
+    ]
+
+    level = models.CharField(
+        max_length=20,
+        choices=LEVEL_CHOICES,
+        default=LEVEL_INFO,
+        verbose_name='Уровень',
+    )
+    endpoint = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        verbose_name='Эндпоинт',
+    )
+    message = models.CharField(
+        max_length=500,
+        verbose_name='Сообщение',
+    )
+    details = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Детали',
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Дата',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Лог'
+        verbose_name_plural = 'Логи'
+
+    def __str__(self):
+        return f'[{self.level}] {self.endpoint}: {self.message}'
+
+
+def add_log(level, endpoint, message, details=None):
+    """Persist an API/payment event for the admin Logs page."""
+    try:
+        if details is not None and not isinstance(details, str):
+            details = json.dumps(details, ensure_ascii=False, default=str)[:10000]
+        RequestLog.objects.create(
+            level=level,
+            endpoint=endpoint or '',
+            message=str(message)[:500],
+            details=details,
+        )
+    except Exception:
+        logging.exception('Failed to write RequestLog')

@@ -9,7 +9,7 @@ import requests
 from django.views.decorators.csrf import csrf_exempt
 import json
 
-from admin_panel.telebot.models import Account, Transaction
+from admin_panel.telebot.models import Account, Transaction, RequestLog, add_log
 from decimal import *
 
 
@@ -59,6 +59,7 @@ def create_account(request):
             logging.warning(request.body)
             data = json.loads(request.body)
             logging.warning(data)
+            add_log(RequestLog.LEVEL_INFO, 'create_account', 'Incoming request', data)
             if 't_pay' in data.keys():
                 logging.warning('+++')
                 name = data.get('Name')
@@ -84,6 +85,12 @@ def create_account(request):
                     kaspi_order_id=data['Phone']
                 )
                 logging.warning('СОЗДАЛИ АККАУНТ ТИЛЬДА')
+                add_log(
+                    RequestLog.LEVEL_SUCCESS,
+                    'create_account',
+                    'Tilda account created',
+                    {'phone': data.get('Phone'), 'sum': sum, 'email': email, 'name': name},
+                )
                 req_data = send_request_kaspi_tilda(data['phone'], amount=sum, client_id=data['Phone'])
                 logging.warning('REQ DATA')
                 logging.warning(req_data)
@@ -109,11 +116,18 @@ def create_account(request):
                     payment_title=payment_title,
                     kaspi_order_id=order_id
                 )
+                add_log(
+                    RequestLog.LEVEL_SUCCESS,
+                    'create_account',
+                    'Account created',
+                    {'telegram_id': telegram_id, 'account': account, 'sum': sum, 'sb_id': sb_id},
+                )
                 return JsonResponse({'status': True, 'message': 'Аккаунт успешно создан!',
                                      'data': [
                                          {'telegram_id': telegram_id, 'sb_id': sb_id, 'account': account,
                                           'sum': sum, "payment_title": payment_title, 'name': name}]})
     except Exception as e:
+        add_log(RequestLog.LEVEL_ERROR, 'create_account', f'Error: {e}')
         return HttpResponse(status=200)
 
 
@@ -127,6 +141,13 @@ def payment_handler(request):
     sum = request.GET.get('sum', 0)
     txn_date = request.GET.get('txn_date')
 
+    add_log(
+        RequestLog.LEVEL_INFO,
+        'payment_handler',
+        f'command={command}',
+        {'txn_id': txn_id, 'account': account, 'sum': sum, 'txn_date': txn_date},
+    )
+
     if command == 'check':
         # Логика проверки
         response = check_account(account, txn_id, sum)
@@ -136,6 +157,8 @@ def payment_handler(request):
     else:
         response = {'result': 5, 'comment': 'Invalid command'}
 
+    level = RequestLog.LEVEL_SUCCESS if response.get('result') == 0 else RequestLog.LEVEL_WARNING
+    add_log(level, 'payment_handler', f'Response result={response.get("result")}', response)
     return JsonResponse(response)
 
 
@@ -230,6 +253,7 @@ def check_account(account, txn_id, sum):
 
     except Exception as e:
         # Обработка неожиданных ошибок
+        add_log(RequestLog.LEVEL_ERROR, 'check_account', f'Error: {e}', {'txn_id': txn_id, 'account': account})
         return {
             "txn_id": txn_id,
             "result": 5,  # Код ошибки: "другая ошибка провайдера"
@@ -366,6 +390,7 @@ def process_payment(txn_id, account, sum, txn_date):
             }
     except Exception as e:
         # Обработка ошибок
+        add_log(RequestLog.LEVEL_ERROR, 'process_payment', f'Error: {e}', {'txn_id': txn_id, 'account': account})
         return {
             "txn_id": txn_id,
             "result": 5,  # Код ошибки: "другая ошибка провайдера"
@@ -385,6 +410,7 @@ def send_request_kaspi(request):
 
             if not all([tran_id, amount, client_id]):
                 logging.error("Некорректные входные данные")
+                add_log(RequestLog.LEVEL_ERROR, 'kaspi_request', 'Missing required parameters', data)
                 return JsonResponse({
                     'status_code': 400,
                     'error': 'Missing required parameters: tran_id, amount, or client_id'
@@ -392,6 +418,12 @@ def send_request_kaspi(request):
 
             # Логирование входных данных
             logging.info(f"Received data - TranId: {tran_id}, Amount: {amount}, ClientId: {client_id}")
+            add_log(
+                RequestLog.LEVEL_INFO,
+                'kaspi_request',
+                'Kaspi payment request',
+                {'tran_id': tran_id, 'amount': amount, 'client_id': client_id},
+            )
 
             # Формируем данные для отправки
             return_url = f'https://www.aulbekova.kz/passive'
@@ -424,6 +456,12 @@ def send_request_kaspi(request):
             # Логируем успешный результат
             logging.info(f"Request successf ul. Status code: {response.status_code}")
             logging.info(f"Response: {response.json()}")
+            add_log(
+                RequestLog.LEVEL_SUCCESS,
+                'kaspi_request',
+                'Kaspi redirect created',
+                {'status_code': response.status_code, 'response': response.json()},
+            )
 
             return JsonResponse({
                 'status_code': response.status_code,
@@ -432,6 +470,7 @@ def send_request_kaspi(request):
 
         except requests.exceptions.Timeout:
             logging.error("Превышено время ожидания ответа от сервера")
+            add_log(RequestLog.LEVEL_ERROR, 'kaspi_request', 'Request timed out')
             return JsonResponse({
                 'status_code': 504,
                 'error': 'Request timed out. Server did not respond in time.'
@@ -439,6 +478,7 @@ def send_request_kaspi(request):
 
         except requests.exceptions.HTTPError as http_err:
             logging.error(f"HTTP ошибка: {http_err}")
+            add_log(RequestLog.LEVEL_ERROR, 'kaspi_request', f'HTTP error: {http_err}')
             return JsonResponse({
                 'status_code': response.status_code if 'response' in locals() else 500,
                 'error': str(http_err)
@@ -446,6 +486,7 @@ def send_request_kaspi(request):
 
         except requests.exceptions.RequestException as req_err:
             logging.error(f"Ошибка запроса: {req_err}")
+            add_log(RequestLog.LEVEL_ERROR, 'kaspi_request', f'Request error: {req_err}')
             return JsonResponse({
                 'status_code': 500,
                 'error': str(req_err)
@@ -453,6 +494,7 @@ def send_request_kaspi(request):
 
         except json.JSONDecodeError:
             logging.error("Неверный формат JSON в запросе")
+            add_log(RequestLog.LEVEL_ERROR, 'kaspi_request', 'Invalid JSON')
             return JsonResponse({
                 'status_code': 400,
                 'error': 'Invalid JSON'
@@ -460,6 +502,7 @@ def send_request_kaspi(request):
 
         except Exception as e:
             logging.error(f"Неизвестная ошибка: {e}")
+            add_log(RequestLog.LEVEL_ERROR, 'kaspi_request', f'Unknown error: {e}')
             return JsonResponse({
                 'status_code': 500,
                 'error': str(e)
@@ -470,6 +513,12 @@ def send_request_kaspi_tilda(phone, amount, client_id):
     try:
         # Логирование входных данных
         logging.warning(f"Received data - TranId: {phone}, Amount: {amount}, ClientId: {client_id}")
+        add_log(
+            RequestLog.LEVEL_INFO,
+            'kaspi_request_tilda',
+            'Kaspi Tilda payment request',
+            {'phone': phone, 'amount': amount, 'client_id': client_id},
+        )
 
         # Формируем данные для отправки
         return_url = 'https://www.aulbekova.kz/passive'
@@ -503,6 +552,12 @@ def send_request_kaspi_tilda(phone, amount, client_id):
         # Логируем успешный результат
         logging.warning(f"Request successful. Status code: {response.status_code}")
         logging.warning(f"Response: {response.json()}")
+        add_log(
+            RequestLog.LEVEL_SUCCESS,
+            'kaspi_request_tilda',
+            'Kaspi Tilda redirect created',
+            {'status_code': response.status_code, 'response': response.json()},
+        )
 
         return JsonResponse({
             'status_code': response.status_code,
@@ -511,6 +566,7 @@ def send_request_kaspi_tilda(phone, amount, client_id):
 
     except requests.exceptions.Timeout:
         logging.error("Превышено время ожидания ответа от сервера")
+        add_log(RequestLog.LEVEL_ERROR, 'kaspi_request_tilda', 'Request timed out')
         return JsonResponse({
             'status_code': 504,
             'error': 'Request timed out. Server did not respond in time.'
@@ -518,6 +574,7 @@ def send_request_kaspi_tilda(phone, amount, client_id):
 
     except requests.exceptions.HTTPError as http_err:
         logging.error(f"HTTP ошибка: {http_err}")
+        add_log(RequestLog.LEVEL_ERROR, 'kaspi_request_tilda', f'HTTP error: {http_err}')
         return JsonResponse({
             'status_code': response.status_code if 'response' in locals() else 500,
             'error': str(http_err)
@@ -525,6 +582,7 @@ def send_request_kaspi_tilda(phone, amount, client_id):
 
     except requests.exceptions.RequestException as req_err:
         logging.error(f"Ошибка запроса: {req_err}")
+        add_log(RequestLog.LEVEL_ERROR, 'kaspi_request_tilda', f'Request error: {req_err}')
         return JsonResponse({
             'status_code': 500,
             'error': str(req_err)
@@ -532,6 +590,7 @@ def send_request_kaspi_tilda(phone, amount, client_id):
 
     except json.JSONDecodeError:
         logging.error("Неверный формат JSON в запросе")
+        add_log(RequestLog.LEVEL_ERROR, 'kaspi_request_tilda', 'Invalid JSON')
         return JsonResponse({
             'status_code': 400,
             'error': 'Invalid JSON'
@@ -539,6 +598,7 @@ def send_request_kaspi_tilda(phone, amount, client_id):
 
     except Exception as e:
         logging.error(f"Неизвестная ошибка: {e}")
+        add_log(RequestLog.LEVEL_ERROR, 'kaspi_request_tilda', f'Unknown error: {e}')
         return JsonResponse({
             'status_code': 500,
             'error': str(e)
