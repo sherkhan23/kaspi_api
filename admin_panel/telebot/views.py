@@ -184,72 +184,37 @@ def check_account(account, txn_id, sum):
                     "comment": "Account not found"
                 }
 
-        # Если аккаунт найден, возвращаем успешный результат
-
-        trans: Transaction = Transaction.objects.filter(account=account).first()
-        if trans:
-            result = trans.result
-            if result == 0:
-                order_id = trans.account
-                user = Account.objects.filter(account=order_id).first()
-                if user is None:
-                    user = Account.objects.filter(phone=account).first()
-
-                    json_data = {
-                        'name': user.name,
-                        'phone': user.phone,
-                        'email': user.email,
-                        'sum': sum,
-                        'title': user.payment_title,
-                    }
-
-                    r = requests.post(
-                        url='https://vakas-tools.ru/base/regjson/af43b99/75968/',
-                        json=json_data
-                    )
-                    logging.warning(f'STATUS ORDER -1: {r.status_code}')
-                    logging.warning(f'RESULT: {r.text}')
-                else:
-                    client_id = user.sb_id
-                    logging.warning(client_id)
-                    r = requests.get(
-                        f'https://chatter.salebot.pro/api/cd19ea34c4b202488fbe16721fd51415/callback?client_id={client_id}&message=kaspi_success')
-                    logging.warning(f'STATUS ORDER NULL: {r.status_code}')
-                    logging.warning(f'RESULT: {r.text}')
-                trans.delete()
-                return {
-                    "txn_id": txn_id,
-                    "result": 0,  # Код успешной проверки,
-                    "sum": Decimal(account_obj.sum),
-                    "comment": "Account valid",
-                    "fields": {
-                        "field1": {
-                            "@name": 'name',
-                            "#text": user.name
-                        },
-                        "field2": {
-                            "@name": 'name',
-                            '#text': user.payment_title
-                        }
-                    }
-                }
-        else:
+        # Если заказ уже успешно оплачен — result 3 (нельзя оплачивать повторно)
+        paid_tx = Transaction.objects.filter(account=account, result=0).first()
+        if paid_tx:
+            add_log(
+                RequestLog.LEVEL_WARNING,
+                'check_account',
+                'Order already paid',
+                {'txn_id': txn_id, 'account': account, 'paid_txn_id': paid_tx.txn_id},
+            )
             return {
-                    "txn_id": txn_id,
-                    "result": 0,  # Код успешной проверки,
-                    "sum": Decimal(account_obj.sum),
-                    "comment": "Account valid",
-                    "fields": {
-                        "field1": {
-                            "@name": 'name',
-                            "#text": account_obj.name
-                        },
-                        "field2": {
-                            "@name": 'name',
-                            '#text': account_obj.payment_title
-                        }
-                    }
+                "txn_id": txn_id,
+                "result": 3,
+                "comment": "Order already paid"
+            }
+
+        return {
+            "txn_id": txn_id,
+            "result": 0,  # Код успешной проверки
+            "sum": Decimal(account_obj.sum),
+            "comment": "Account valid",
+            "fields": {
+                "field1": {
+                    "@name": 'name',
+                    "#text": account_obj.name
+                },
+                "field2": {
+                    "@name": 'name',
+                    '#text': account_obj.payment_title
                 }
+            }
+        }
 
     except Exception as e:
         # Обработка неожиданных ошибок
@@ -277,8 +242,26 @@ def process_payment(txn_id, account, sum, txn_date):
         if not created:
             return {
                 "txn_id": txn_id,
-                "result": 3,  # Код ошибки: "транзакция уже обработана"
-                "comment": "Transaction already exists"
+                "result": 3,  # Код ошибки: "заказ уже оплачен / транзакция уже обработана"
+                "comment": "Order already paid"
+            }
+
+        # Этот заказ/аккаунт уже успешно оплачен другим txn_id
+        if Transaction.objects.filter(account=account, result=0).exclude(pk=transaction.pk).exists():
+            transaction.result = 3
+            transaction.account = account
+            transaction.comment = "Order already paid"
+            transaction.save()
+            add_log(
+                RequestLog.LEVEL_WARNING,
+                'process_payment',
+                'Order already paid',
+                {'txn_id': txn_id, 'account': account},
+            )
+            return {
+                "txn_id": txn_id,
+                "result": 3,
+                "comment": "Order already paid"
             }
 
         # Проверка существования аккаунта
